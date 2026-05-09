@@ -2,7 +2,7 @@
 
 SCRIPT_DIR="$(readlink -f $(dirname $0))"
 
-if grep -c '^ssh' /etc/dropbear/authorized_keys -eq 0; then
+if [ ! -s /etc/dropbear/authorized_keys ] || ! grep -qE '^(ssh-|ecdsa-)' /etc/dropbear/authorized_keys; then
     echo "No authorized keys found in /etc/dropbear/authorized_keys"
     exit 1
 fi

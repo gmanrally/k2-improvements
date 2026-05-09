@@ -250,4 +250,6 @@ start_service() {
     # taskset klipper process to CPU1
     procd_set_param command taskset 0x2 $PROG $PY_SCRIPT $CONF -l $LOG -a /tmp/klippy_uds
     procd_close_instance
+
+    [ -f /usr/bin/klipper_watcher.sh ] && . /usr/bin/klipper_watcher.sh &
 }
