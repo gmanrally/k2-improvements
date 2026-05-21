@@ -25,7 +25,7 @@ echo "all" | /usr/bin/nc -U /var/run/wipe.sock
 ```
 
 1. Enable root access on the K2 Plus by going to Settings, General tab and root on the physical screen. Take note of the password.
-1. Download the latest bootstrap release from [https://github.com/gmanrally/k2-improvements/releases](https://github.com/gmanrally/k2-improvements/releases) and extract the folder.
+1. Download `bootstrap.zip` from the latest [release](https://github.com/gmanrally/k2-improvements/releases) and extract the folder. (Source for the bootstrap lives in [`bootstrap/`](./bootstrap/README.md).)
 1. To install the bootstrap, connect to your K2 Plus's Fluid interface via browser **http://PrinterIP:4408**
 1. Unzip the downloaded bootstrap folder and upload the extracted bootstrap folder by going to Configuration **{...}**, **+**, **Upload Folder**, and selecting the extracted bootstrap folder.
     ![image](https://github.com/user-attachments/assets/3d242efc-4cf8-412d-b4b0-59507720f5ad)
