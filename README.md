@@ -1,11 +1,10 @@
-# K2 Plus Improvements Script Maintainers Fork
+# K2 Plus Improvements
 
-JaminCollins has archived his repo, I have the cartographer as well as use the k2-improvements script on my K2 Plus alongside an internal USB Hub and a custom Camera addition.
+This is the actively-maintained continuation of [CampbellFabrications/k2-improvements](https://github.com/CampbellFabrications/k2-improvements) (archived 2026-02-07), which itself forked from [@jamincollins](https://github.com/jamincollins). Most of the underlying features (fluidd, moonraker, cartographer3d-plugin) come from [@Jacob10383](https://github.com/Jacob10383)'s ongoing work; this fork adds nozzle-camera streaming, firmware-compat fixes for the latest Creality builds, and a few quality-of-life macros.
 
-Most of the underlying features such as fluidd, moonraker, and cartographer3d-plugin, are being maintaned and updated by [Jacob10383](https://github.com/Jacob10383)
-* This Fork implements other minor features such as webcam modifications, and nozzle-camera additions.
+**Current release:** [`v1.2.0`](https://github.com/gmanrally/k2-improvements/releases/tag/v1.2.0) — verified against Creality K2 Plus firmware **V1.1.5.5** (kernel build 2026-05-08).
 
-In the `features` folder you will find install scripts for each of the features being installed, if desired to run separately.
+In the `features` folder you will find install scripts for each of the features, if you'd rather install them individually.
 
 ## DISCLAIMER
 
@@ -26,7 +25,7 @@ echo "all" | /usr/bin/nc -U /var/run/wipe.sock
 ```
 
 1. Enable root access on the K2 Plus by going to Settings, General tab and root on the physical screen. Take note of the password.
-1. Download the latest bootstrap release from [https://github.com/campbellfabrications/k2-improvements/releases](https://github.com/campbellfabrications/k2-improvements/releases) and extract the folder.
+1. Download the latest bootstrap release from [https://github.com/gmanrally/k2-improvements/releases](https://github.com/gmanrally/k2-improvements/releases) and extract the folder.
 1. To install the bootstrap, connect to your K2 Plus's Fluid interface via browser **http://PrinterIP:4408**
 1. Unzip the downloaded bootstrap folder and upload the extracted bootstrap folder by going to Configuration **{...}**, **+**, **Upload Folder**, and selecting the extracted bootstrap folder.
     ![image](https://github.com/user-attachments/assets/3d242efc-4cf8-412d-b4b0-59507720f5ad)
@@ -37,11 +36,13 @@ echo "all" | /usr/bin/nc -U /var/run/wipe.sock
 
 ## Installers
 
-* Option 1: `gimme-the-jamin.sh` - Used to install cartographer features **NOTE MUST HAVE CARTO FLASHED AND PLUGGED IN AND READY TO GO** by following instructions [here](https://github.com/campbellfabrications/k2-improvements/blob/main/features/cartographer/firmware/README.md) first.
+* Option 1: `gimme-the-jamin.sh` - Used to install cartographer features **NOTE MUST HAVE CARTO FLASHED AND PLUGGED IN AND READY TO GO** by following instructions [here](https://github.com/gmanrally/k2-improvements/blob/main/features/cartographer/firmware/README.md) first.
 
     To run, use the terminal command `sh /mnt/UDISK/root/k2-improvements/gimme-the-jamin.sh`
 
-    After install you will need to calibrate the carto by following instructions [here](https://github.com/campbellfabrications/k2-improvements/blob/main/features/cartographer/SETUP.md)
+    After install you will need to calibrate the carto by following instructions [here](https://github.com/gmanrally/k2-improvements/blob/main/features/cartographer/SETUP.md)
+
+    V3 Cartographer hardware works fine with the bundled V4 plugin — the `Survey_Cartographer_USB_8kib_offset.bin` firmware in `features/cartographer/firmware/` handles V3 boards.
 
 * Option 2: `no-carto.sh` - Use this if you aren't going to use a carto, or don't have your carto yet.
 
@@ -52,6 +53,12 @@ They both install the same set of features (those that I use).  The only differe
 You are still welcome to hand pick which features you want to install.
 
 # Latest Added Features:
+
+## Nozzle Camera Streaming (v1.2.0)
+The K2 Plus has a built-in nozzle camera that Creality only enables briefly during first-layer calibration. The new [nozzle-cam](./features/nozzle-cam/README.md) feature powers it on demand and serves an MJPEG stream on port 8081 so it can be viewed in Fluidd alongside the chamber webcam. Call `NOZZLE_CAM_ON` / `NOZZLE_CAM_OFF` from the Fluidd console; the LED auto-shuts-off after 10 minutes for safety.
+
+## PAUSE / RESUME Safety Guards (v1.2.0)
+Stock Creality `PAUSE_EXTERNAL` can save `extruder.target=0` if paused before the heater ramps up, and the stock `RESUME` then quietly turns the hotend off mid-print. This fork guards against that in `features/macros/overrides/overrides.cfg`: PAUSE refuses to save a corrupted state, and RESUME blocks on `M109` and `M190` so the print never continues with a cold nozzle or cold bed.
 
 ## Cartographer V4 Support
 Replaced the Cartographer Feature Folder with [Jacob10383's](https://github.com/Jacob10383) commit enabling [Cartographer V4](https://github.com/Jacob10383/k2-improvements/commit/a6698912233346fe593b7ae30bd22693854f9cac) support.
@@ -73,10 +80,11 @@ Set this value to `is_non_critical: true` to allow disconnects without the print
 * [axis_twist_compensation](./features/axis_twist_compensation/README.md)
 * [better init](./features/better-init/README.md)
 * [better root](./features/better-root/README.md) home directory
-* [Cartographer](./features/cartographer/README.md) support
+* [Cartographer](./features/cartographer/README.md) support (V3 and V4 hardware)
 * installs [Entware](https://github.com/Entware/Entware)
 * updated [Fluidd](./features/fluidd/README.md)
 * updated [Moonraker](./features/moonraker/README.md)
+* [nozzle-cam](./features/nozzle-cam/README.md) — view the built-in nozzle camera in Fluidd
 * [Obico](./features/obico/README.md) - _WIP_
 * implements [SCREWS_TILT_CALCULATE](https://www.klipper3d.org/Manual_Level.html#adjusting-bed-leveling-screws-using-the-bed-probe)
 
@@ -93,8 +101,9 @@ Sadly, many of the K2 beds resemble a taco or valley.  In the [bed_leveling](bed
 ## Credits
 
 
-* [@jamincollins](https://github.com/jamincollins) - The Guy who made this project to begin with
-* [@Jacob10383](https://github.com/Jacob10383/) - KAMP, Resonance Sweeping changes for `shaper_calibrate`, slowly merging his fork and standalone Printer repo into this repo.
+* [@jamincollins](https://github.com/jamincollins) - The guy who started this project
+* [@CampbellFabrications](https://github.com/CampbellFabrications) - Maintained the project through the V4 cartographer transition
+* [@Jacob10383](https://github.com/Jacob10383/) - KAMP, Resonance Sweeping changes for `shaper_calibrate`, ongoing maintenance of moonraker / fluidd / cartographer3d-plugin forks consumed here
 * [@Guilouz](https://github.com/Guilouz) - standing on the shoulders of giants
 * [@stranula](https://github.com/stranula)
 * [@juliosueiras](https://github.com/juliosueiras)
