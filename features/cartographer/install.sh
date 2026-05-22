@@ -14,6 +14,17 @@ if [ ! -d cartographer3d-plugin/.git ]; then
     git clone https://github.com/Jacob10383/cartographer3d-plugin.git
 fi
 
+# Patch the V4 plugin's sample_range schema cap so V3 hardware (which has
+# wider touch-sample variance) can be configured with V3-equivalent
+# tolerances (~200um). Upstream caps sample_range at 0.015mm (15um);
+# we raise to 0.5mm to allow up to V3's 200um default.
+# Idempotent: only patches if the original constraint string is found.
+PLUGIN_CFG=${HOME}/cartographer3d-plugin/src/cartographer/interfaces/configuration.py
+if [ -f "$PLUGIN_CFG" ] && grep -q 'sample_range:.*max=0.015' "$PLUGIN_CFG"; then
+    echo "I: patching V4 plugin sample_range cap for V3-hardware compatibility"
+    sed -i 's/sample_range: float = option("Acceptable range (in mm) between touch samples.", default=0.010, min=0.001, max=0.015)/sample_range: float = option("Acceptable range (in mm) between touch samples.", default=0.010, min=0.001, max=0.5)/' "$PLUGIN_CFG"
+fi
+
 echo "I: installing python dependencies"
 ~/klippy-env/bin/pip install --disable-pip-version-check typing_extensions
 
