@@ -418,7 +418,7 @@ class PrinterHoming:
                                 ret = self.run_G28_two_Z()
                                 if ret == MOTOR_PROTECT_ERROR:
                                     gcode.respond_info("Z MOTOR_PROTECT_ERROR")
-                                    raise
+                                    raise self.printer.command_error("Z MOTOR_PROTECT_ERROR during run_G28_two_Z")
                                 gcode.run_script_from_command("SET_VELOCITY_LIMIT ACCEL=%s" % max_accel )
                                 # Mark photoelectric leveling as done BEFORE scanner check
                                 # This preserves the leveling work even if scanner is disconnected
@@ -482,7 +482,7 @@ class PrinterHoming:
         if self.config.has_section("motor_control") and self.config.getsection('motor_control').getint('switch')==1:
             # gcode.run_script_from_command("MOTOR_CLEAR_ERR_WARN_CODE NUM=0 DATA=5") # 清除错误码
             self.printer.lookup_object('motor_control').is_homing = False
-            raise
+            raise self.printer.command_error("set_stall_mode reached bare-raise sentinel (motor_control switch==1) - upstream stub")
             # gcode.run_script_from_command("MOTOR_STALL_MODE DATA=2") # stall 引脚模式切换为紧急保护输出模式
             # self.printer.get_reactor().pause(self.printer.get_reactor().monotonic() + 1.0)
             # self.printer.lookup_object('motor_control').is_homing = False
