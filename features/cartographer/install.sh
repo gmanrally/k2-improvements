@@ -25,6 +25,18 @@ if [ -f "$PLUGIN_CFG" ] && grep -q 'sample_range:.*max=0.015' "$PLUGIN_CFG"; the
     sed -i 's/sample_range: float = option("Acceptable range (in mm) between touch samples.", default=0.010, min=0.001, max=0.015)/sample_range: float = option("Acceptable range (in mm) between touch samples.", default=0.010, min=0.001, max=0.5)/' "$PLUGIN_CFG"
 fi
 
+# Apply upstream Cartographer3D/cartographer3d-plugin PR #480 — "fix:
+# improve bed mesh scan robustness". Fixes the "Grid point (X,Y) has
+# no valid samples" failure where corner grid cells used an asymmetric
+# 100x smaller capture radius (epsilon=0.01) than interior cells
+# (max_distance=1.0). Jacob10383's fork (which we clone) lags upstream
+# and didn't have this fix at install-time. Idempotent.
+PLUGIN_HELPERS=${HOME}/cartographer3d-plugin/src/cartographer/macros/bed_mesh/helpers.py
+if [ -f "$PLUGIN_HELPERS" ] && grep -q 'if not self.grid.contains_point((x, y)):' "$PLUGIN_HELPERS"; then
+    echo "I: applying PR #480 mesh-binning fix"
+    sed -i 's|if not self.grid.contains_point((x, y)):|if not self.grid.contains_point((x, y), epsilon=self.max_distance):|' "$PLUGIN_HELPERS"
+fi
+
 echo "I: installing python dependencies"
 ~/klippy-env/bin/pip install --disable-pip-version-check typing_extensions
 
