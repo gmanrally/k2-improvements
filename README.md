@@ -2,7 +2,7 @@
 
 This is the actively-maintained continuation of [CampbellFabrications/k2-improvements](https://github.com/CampbellFabrications/k2-improvements) (archived 2026-02-07), which itself forked from [@jamincollins](https://github.com/jamincollins). Most of the underlying features (fluidd, moonraker, cartographer3d-plugin) come from [@Jacob10383](https://github.com/Jacob10383)'s ongoing work; this fork adds nozzle-camera streaming, firmware-compat fixes for the latest Creality builds, and a few quality-of-life macros.
 
-**Current release:** [`v1.2.0`](https://github.com/gmanrally/k2-improvements/releases/tag/v1.2.0) — verified against Creality K2 Plus firmware **V1.1.5.5** (kernel build 2026-05-08).
+**Current release:** [`v1.3.0`](https://github.com/gmanrally/k2-improvements/releases/tag/v1.3.0) — cartographer reliability pack (boot autostart, V3 schema patch, carto-watchdog cron, CARTO-SAFE homing.py patch, V3-tuned bed-mesh defaults). Verified against Creality K2 Plus firmware **V1.1.5.5** (kernel build 2026-05-08). See [Latest Added Features](#latest-added-features) for the full v1.3.0 changelog.
 
 In the `features` folder you will find install scripts for each of the features, if you'd rather install them individually.
 
@@ -53,6 +53,52 @@ They both install the same set of features (those that I use).  The only differe
 You are still welcome to hand pick which features you want to install.
 
 # Latest Added Features:
+
+## v1.3.0 — Cartographer reliability pack
+
+This release packages everything we learned operating a small K2 Plus fleet under sustained PA-CF / engineering-polymer print loads. All changes are in the `features/cartographer/` install path.
+
+**install.sh changes:**
+- **`/etc/init.d/cartographer enable`** — service is now registered for boot autostart. Without this, after the first reboot the bridge daemon didn't start and `/dev/cartographer` went missing silently (Klipper marked the MCU `non_critical_disconnected` and Z homing broke). Observed Jun 2026.
+- **V3-touch schema-cap patch** — sed on `cartographer3d-plugin/src/cartographer/interfaces/configuration.py` raises the `sample_range` max from `0.015` (V4-hardware tight) to `0.5` so V3 hardware can pass `CARTOGRAPHER_TOUCH_CALIBRATE`. Idempotent.
+- **`carto-watchdog.sh` cron** — installed at `/mnt/UDISK/bin/carto-watchdog.sh`, runs every minute, restarts the cartographer service if `/dev/cartographer` is missing or `usb_bridge` isn't running. Defence-in-depth alongside the boot autostart fix.
+
+**`patches/homing.py` CARTO-SAFE patch:**
+- Removed the `error = None` clearing for Z axis when `check_triggered` fires without a real trigger. The original behaviour was: SCAN-mode homing returns `trig_pos: None`, K2's patched homing silently accepts the home, the cartographer plugin's `on_home_end` runs, calls `set_z_homed_position()` with whatever the coil reads, and the next move rams the toolhead into the bed. The patch makes Z-no-trigger an error (recoverable) instead of a fake success (crash). Logged as `key22 No trigger on z`.
+
+**`cartographer.cfg` template changes (V3-safe defaults baked in):**
+- `bed_mesh.speed: 200 -> 150`
+- `bed_mesh.probe_count: 31, 31 -> 19, 19`
+- Added `[cartographer scan]` with `mesh_runs: 2`
+- Added `[cartographer touch]` block with V3-safe values (`samples: 5`, `max_noisy_samples: 4`, `sample_range: 0.2`)
+
+The previous higher-density / single-pass settings were correct for V4 hardware but failed stochastically on V3 boards under USB-bridge packet loss. New settings work for both.
+
+## V3 vs V4 cartographer hardware — what to change
+
+The fork ships V3-safe defaults. Here's the matrix:
+
+| Setting | V3 hardware (default) | V4 hardware (edit if you have V4) |
+|---|---|---|
+| `[cartographer touch] sample_range` | `0.2` | `0.015` (V4-plugin default) — or just **comment out the whole `[cartographer touch]` block** |
+| `[cartographer touch] samples` | `5` | `3` |
+| `[cartographer touch] max_noisy_samples` | `4` | `2` |
+| `[bed_mesh] probe_count` | `19, 19` | `31, 31` if you want higher mesh resolution |
+| `[bed_mesh] speed` | `150` | `200` works on V4 |
+| `[cartographer scan] mesh_runs` | `2` | `1` works on V4 (faster mesh) |
+| ADXL345 `cs_pin` (if used) | `cartographer:PA3` | `cartographer:PA0` |
+
+**How to tell which hardware you have:**
+
+- After install, query the MCU version:
+  ```
+  curl -s 'http://YOUR_PRINTER_IP:7125/printer/objects/query?mcu%20cartographer=' | python -c "import json,sys; print(json.load(sys.stdin)['result']['status']['mcu cartographer']['mcu_version'])"
+  ```
+  - V3 hardware reports `CARTOGRAPHER K1 5.x.x`
+  - V4 hardware reports a different version string (newer ASIC)
+- Physically: V3 has a single sensor coil PCB; V4 has the newer integrated ASIC daughterboard
+
+**The V3 schema patch is harmless on V4** — it raises a *ceiling* but doesn't change the default. V4 configs that set `sample_range: 0.015` work identically.
 
 ## Nozzle Camera Streaming (v1.2.0)
 The K2 Plus has a built-in nozzle camera that Creality only enables briefly during first-layer calibration. The new [nozzle-cam](./features/nozzle-cam/README.md) feature powers it on demand and serves an MJPEG stream on port 8081 so it can be viewed in Fluidd alongside the chamber webcam. Call `NOZZLE_CAM_ON` / `NOZZLE_CAM_OFF` from the Fluidd console; the LED auto-shuts-off after 10 minutes for safety.
