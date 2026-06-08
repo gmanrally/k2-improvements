@@ -17,6 +17,24 @@ fi
 echo "I: installing python dependencies"
 ~/klippy-env/bin/pip install --disable-pip-version-check typing_extensions
 
+# ---------------------------------------------------------------------------
+# V3-hardware touch-tolerance schema cap patch.
+#
+# The V4 plugin's [cartographer touch] schema enforces sample_range <= 0.015
+# (15 µm). V4 hardware achieves that. V3 hardware has 150-200 µm touch
+# variance and CANNOT, so every V3 CARTOGRAPHER_TOUCH_CALIBRATE fails at the
+# default. This sed raises the cap to 0.5 mm. Idempotent — re-running on an
+# already-patched file does nothing. Safe on V4 hardware (the V4 cfg can
+# still use sample_range: 0.015 unchanged).
+# ---------------------------------------------------------------------------
+CONFIG_FILE=~/cartographer3d-plugin/src/cartographer/interfaces/configuration.py
+if [ -f "$CONFIG_FILE" ]; then
+    sed -i 's/sample_range: float = Field(default=0\.015, le=0\.015/sample_range: float = Field(default=0.015, le=0.5/' "$CONFIG_FILE"
+    if grep -q 'le=0.5' "$CONFIG_FILE"; then
+        echo "I: V3-hardware schema cap applied (sample_range max raised 0.015 -> 0.5)"
+    fi
+fi
+
 # create shim to import cartographer into klipper
 cat > ~/klipper/klippy/extras/cartographer.py << 'EOF'
 import sys
@@ -37,6 +55,11 @@ if ! zcat /proc/config.gz 2>/dev/null | grep -q "CONFIG_USB_ACM=y"; then
     # install service
     ln -sf ${SCRIPT_DIR}/cartographer.init /etc/init.d/cartographer
     ln -sf ${SCRIPT_DIR}/cartographer.init /opt/etc/init.d/S50cartographer
+    # Enable for boot autostart (creates /etc/rc.d/S50cartographer -> /etc/init.d/cartographer).
+    # Without this the service only runs after this install.sh's `start` line below
+    # — first reboot drops /dev/cartographer and Z homing breaks until manual
+    # /etc/init.d/cartographer start. Observed on 86D2 2026-06-05 (~15h dark).
+    /etc/init.d/cartographer enable
     /etc/init.d/cartographer start
     CARTO_SERIAL="/dev/cartographer"
 else
@@ -75,6 +98,32 @@ if [ -f ~/printer_data/config/moonraker.conf ]; then
     python3 ~/k2-improvements/scripts/moonraker_include.py updates/cartographer.cfg
 else
     echo "W: moonraker not found, skipping update manager registration"
+fi
+
+# ---------------------------------------------------------------------------
+# Install the carto-watchdog cron — self-heals if /dev/cartographer goes
+# away (USB blip, usb_bridge daemon crash, etc.). Runs every minute, costs
+# <0.1% CPU. Same defence-in-depth pattern as cam-watchdog.
+# ---------------------------------------------------------------------------
+if ! zcat /proc/config.gz 2>/dev/null | grep -q "CONFIG_USB_ACM=y"; then
+    cat > /mnt/UDISK/bin/carto-watchdog.sh << 'WATCHDOG'
+#!/bin/sh
+# Per-minute: if /dev/cartographer is missing OR usb_bridge isn't running,
+# restart the cartographer service. Survives bridge crash + USB
+# disconnect/reconnect blips that stock cartographer_wrapper.sh doesn't
+# notice on its own.
+if [ ! -e /dev/cartographer ] || ! pgrep -f '/mnt/UDISK/bin/usb_bridge' >/dev/null 2>&1; then
+    /etc/init.d/cartographer start >/dev/null 2>&1
+fi
+WATCHDOG
+    chmod +x /mnt/UDISK/bin/carto-watchdog.sh
+    mkdir -p /etc/crontabs
+    touch /etc/crontabs/root
+    if ! grep -q carto-watchdog /etc/crontabs/root; then
+        echo '* * * * * /mnt/UDISK/bin/carto-watchdog.sh' >> /etc/crontabs/root
+        (/etc/init.d/cron restart 2>/dev/null || /etc/init.d/crond restart 2>/dev/null) || true
+        echo "I: carto-watchdog cron installed"
+    fi
 fi
 
 echo "I: restarting klipper"

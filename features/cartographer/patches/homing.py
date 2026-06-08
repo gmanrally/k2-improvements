@@ -127,7 +127,17 @@ class HomingMove:
                 error = """{"code":"key22", "msg":"No trigger on %s after full movement", "values": ["%s"]}""" % (name, name)
                 # z轴误触发后,对x、y电机进行切换为错误码输出模式
                 if name == "z":
-                    error = None
+                    # CARTO-SAFE PATCH (2026-06-01): do NOT clear the error here.
+                    # The original code did `error = None` for the z axis, on the
+                    # assumption that prtouch_v3 had a save_variables fallback.
+                    # With cartographer (set via the prtouch_v3 fallback at the
+                    # top of this file), there is no such fallback — clearing the
+                    # error lets carto's on_home_end run, accept whatever
+                    # measure_distance() returns, call set_z_homed_position(),
+                    # and the next move rams the bed. Observed on EA02 19:12:46
+                    # under heavy USB-bridge packet loss when the SCAN trigger
+                    # never fired. Keep `error` set so it propagates to the
+                    # raise at line ~167 below.
                     self.prtouch_v3.z_full_movement_flag = True
                     logging.info("No trigger on z after full movement, set MOTOR_STALL_MODE DATA=2")
                     gcode = self.printer.lookup_object('gcode')
