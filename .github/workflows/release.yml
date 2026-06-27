@@ -27,8 +27,13 @@ jobs:
       - name: Checkout repo at the tagged commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
-          fetch-depth: 1
+          # For workflow_dispatch the input is a bare tag name (e.g. v1.3.0);
+          # actions/checkout's shallow path doesn't always resolve that to a
+          # tag ref, so we explicitly construct refs/tags/<tag>. For push
+          # events github.ref is already refs/tags/v1.3.0 so we use it as-is.
+          ref: ${{ github.event.inputs.tag && format('refs/tags/{0}', github.event.inputs.tag) || github.ref }}
+          fetch-depth: 0     # full history — annotated tags need this to resolve reliably
+          fetch-tags: true
 
       - name: Resolve tag name
         id: tag
