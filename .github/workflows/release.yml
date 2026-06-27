@@ -1,0 +1,71 @@
+name: Build + publish bootstrap.zip on tag
+
+# Fires whenever a tag matching v*.*.* is pushed (e.g. v1.3.0, v2.0.0-rc1).
+# Builds bootstrap.zip from the bootstrap/ directory and either creates a
+# new GitHub Release for that tag or attaches the asset to an existing one.
+#
+# Manual workflow_dispatch lets you re-run the build against any tag from
+# the Actions UI without re-pushing the tag.
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (e.g. v1.3.0)'
+        required: true
+
+permissions:
+  contents: write   # needed to upload release assets
+
+jobs:
+  bootstrap-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo at the tagged commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 1
+
+      - name: Resolve tag name
+        id: tag
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "name=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            # github.ref is "refs/tags/v1.3.0" on a tag push
+            echo "name=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build bootstrap.zip
+        shell: bash
+        run: |
+          if [ ! -d bootstrap ]; then
+            echo "::error::bootstrap/ directory missing at tagged commit ${{ steps.tag.outputs.name }}"
+            exit 1
+          fi
+          # The README instructs users to upload an extracted "bootstrap"
+          # folder via Fluidd's file manager. So the archive must contain
+          # the directory itself, not its contents at the zip root.
+          zip -r bootstrap.zip bootstrap -x '*.pyc' '*/__pycache__/*'
+          echo "--- bootstrap.zip contents ---"
+          unzip -l bootstrap.zip | head -30
+          echo "--- size ---"
+          ls -lh bootstrap.zip
+
+      - name: Create / update GitHub Release and attach bootstrap.zip
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          name: ${{ steps.tag.outputs.name }}
+          generate_release_notes: true   # auto-fills "What's Changed" from PRs/commits
+          files: bootstrap.zip
+          # Don't auto-publish drafts as releases when the tag is moved.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
