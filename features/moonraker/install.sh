@@ -4,7 +4,17 @@ set -e
 
 SCRIPT_DIR=$(readlink -f $(dirname ${0}))
 
-cd ${HOME}
+# Pin install root to /mnt/UDISK/root regardless of what $HOME is set to.
+# Reason: moonraker.init hardcodes /mnt/UDISK/root/moonraker{,-env}, but $HOME
+# on a K2 is /root (per /etc/passwd). If the user is in a shell where $HOME
+# hasn't been remapped, the relative `git clone moonraker` + `~/moonraker-env`
+# below would land in /root/moonraker* — and then the init script can't find
+# the binary, moonraker never starts, wait_for_moonraker times out.
+# Diagnosed by ChatGPT user 2026-06-29.
+INSTALL_ROOT=/mnt/UDISK/root
+mkdir -p "${INSTALL_ROOT}"
+cd "${INSTALL_ROOT}"
+export HOME="${INSTALL_ROOT}"
 
 export TMPDIR=/mnt/UDISK/tmp
 mkdir -p "${TMPDIR}"
@@ -107,7 +117,21 @@ replace_moonraker() {
 modify_moonraker_asvc() {
     progress "Modifying moonraker.asvc ..."
     MOONRAKER_ASVC=/mnt/UDISK/printer_data/moonraker.asvc
-    for SERVICE in webrtc cartographer klipper; do
+    # Ensure file exists on fresh wipe — otherwise grep below prints a noisy
+    # "No such file or directory" to stderr (functionally harmless: the
+    # `echo >>` would create it anyway, but the stderr line looks like an
+    # error to users tailing the install).
+    mkdir -p "$(dirname ${MOONRAKER_ASVC})"
+    touch ${MOONRAKER_ASVC}
+    # Always allow Moonraker to control webrtc + klipper. Only add cartographer
+    # when its init script exists — i.e. when the user ran gimme-the-jamin.sh
+    # rather than no-carto.sh. Avoids registering a service that doesn't exist
+    # for no-carto installs.
+    SERVICES="webrtc klipper"
+    if [ -f /etc/init.d/cartographer ]; then
+        SERVICES="${SERVICES} cartographer"
+    fi
+    for SERVICE in ${SERVICES}; do
         if ! grep -qE "${SERVICE}" ${MOONRAKER_ASVC}; then
             echo "${SERVICE}" >> ${MOONRAKER_ASVC}
         fi
