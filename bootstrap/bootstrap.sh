@@ -12,8 +12,17 @@
 #   2. Installs git, curl, jq, unzip, openssh-sftp-server via opkg
 #   3. Clones https://github.com/gmanrally/k2-improvements.git into
 #      /mnt/UDISK/root/k2-improvements
+#   4. Runs features/better-root/install.sh — migrates /root to
+#      /mnt/UDISK/root, updates /etc/passwd, creates ~/klipper,
+#      ~/klippy-env, ~/printer_data symlinks that downstream install
+#      scripts depend on, and LOGS YOU OUT of SSH at the end so the
+#      new $HOME takes effect on next login. Mirrors CampbellFabrications's
+#      original Bootstrap (V1.1.3.13, Sept 2025) — our earlier bootstrap
+#      release accidentally dropped this step, leaving fresh-wipe printers
+#      with $HOME=/root and no ~/klipper symlink, which silently broke
+#      moonraker + cartographer installs.
 #
-# After this completes, run one of:
+# After log-out + log-back-in, run one of:
 #   sh /mnt/UDISK/root/k2-improvements/no-carto.sh
 #   sh /mnt/UDISK/root/k2-improvements/gimme-the-jamin.sh   # if you have a Cartographer probe
 
@@ -102,8 +111,34 @@ else
     git clone "$REPO_URL" "$REPO_DEST"
 fi
 
-echo
-echo "## Bootstrap complete."
-echo "## Next step - run one of:"
-echo "##   sh $REPO_DEST/no-carto.sh           # printers without a Cartographer probe"
-echo "##   sh $REPO_DEST/gimme-the-jamin.sh    # printers with a Cartographer probe"
+# ---- Step 3: better-root ----
+#
+# Migrate /root -> /mnt/UDISK/root and create the symlinks downstream
+# install scripts assume exist (~/klipper, ~/klippy-env, ~/printer_data,
+# ~/moonraker, ~/moonraker-env). The script self-skips via the
+# `grep -qE 'root.*UDISK' /etc/passwd` check if already migrated.
+#
+# better-root kills the SSH session at the end (via SIGKILL on dropbear)
+# so the new $HOME takes effect on the next login. ANY echo after this
+# point will NOT be seen by the user — print the next-step instructions
+# BEFORE invoking it.
+BETTER_ROOT="$REPO_DEST/features/better-root/install.sh"
+if [ -x "$BETTER_ROOT" ]; then
+    echo
+    echo "## Bootstrap entware + clone complete."
+    echo "## Step 3 will now run better-root, which will LOG YOU OUT of SSH."
+    echo "## After it disconnects you, log back in and run one of:"
+    echo "##   sh $REPO_DEST/no-carto.sh           # printers without a Cartographer probe"
+    echo "##   sh $REPO_DEST/gimme-the-jamin.sh    # printers with a Cartographer probe"
+    echo
+    echo "## Running better-root ..."
+    sh "$BETTER_ROOT"
+else
+    echo
+    echo "## Bootstrap complete."
+    echo "## W: $BETTER_ROOT not found — skipping homedir migration."
+    echo "## W: Subsequent install scripts may fail if ~/klipper etc do not exist."
+    echo "## Next step - run one of:"
+    echo "##   sh $REPO_DEST/no-carto.sh           # printers without a Cartographer probe"
+    echo "##   sh $REPO_DEST/gimme-the-jamin.sh    # printers with a Cartographer probe"
+fi
