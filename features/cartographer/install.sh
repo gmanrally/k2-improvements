@@ -3,7 +3,13 @@ set -e
 
 SCRIPT_DIR=$(readlink -f $(dirname ${0}))
 
-cd ${HOME}
+# Pin install root — see features/moonraker/install.sh for the diagnosis.
+# When invoked from no-carto.sh / gimme-the-jamin.sh this is already set;
+# pinning here too makes standalone invocation safe.
+INSTALL_ROOT=/mnt/UDISK/root
+mkdir -p "${INSTALL_ROOT}"
+export HOME="${INSTALL_ROOT}"
+cd "${INSTALL_ROOT}"
 
 # clone cartographer plugin
 if [ ! -d cartographer3d-plugin/.git ]; then

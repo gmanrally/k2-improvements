@@ -7,8 +7,16 @@ if [ ! -f /mnt/UDISK/root/printer_data/config/moonraker.conf ]; then
     exit 1
 fi
 
-cd ${HOME}
 SCRIPT_DIR=$(readlink -f $(dirname ${0}))
+
+# Pin install root — see features/moonraker/install.sh for the diagnosis.
+# Without this, on a fresh wipe $HOME=/root and the `ln -sf ~/fluidd
+# /usr/share/fluidd` below would symlink to /root/fluidd, then break when
+# anything else looks for it at /mnt/UDISK/root/fluidd.
+INSTALL_ROOT=/mnt/UDISK/root
+mkdir -p "${INSTALL_ROOT}"
+export HOME="${INSTALL_ROOT}"
+cd "${INSTALL_ROOT}"
 
 # MUST have Entware installed
 if [ ! -f /opt/bin/opkg ]; then

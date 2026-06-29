@@ -4,6 +4,14 @@ set -xe
 
 SCRIPT_DIR=$(readlink -f $(dirname ${0}))
 
+# Pin install root + HOME — see no-carto.sh for the full diagnosis. Without
+# this, fresh-wipe printers have $HOME=/root and moonraker/cartographer
+# installs land in /root/* while init scripts look in /mnt/UDISK/root/*.
+INSTALL_ROOT=/mnt/UDISK/root
+mkdir -p "${INSTALL_ROOT}"
+export HOME="${INSTALL_ROOT}"
+cd "${INSTALL_ROOT}"
+
 install_feature() {
     FEATURE=${1}
     if [ ! -f /tmp/${FEATURE} ]; then
