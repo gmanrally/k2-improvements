@@ -11,6 +11,14 @@ mkdir -p "${INSTALL_ROOT}"
 export HOME="${INSTALL_ROOT}"
 cd "${INSTALL_ROOT}"
 
+# Entware tools (git etc) live in /opt/bin, which only login shells get via
+# /etc/profile.d. Non-login invocation (ssh 'sh gimme-the-jamin.sh') has a
+# bare PATH -> 'git: not found' on fresh installs. Same pattern fluidd's
+# install.sh already uses.
+if [ -f /etc/profile.d/entware.sh ]; then
+    echo ${PATH} | grep -q /opt || . /etc/profile.d/entware.sh
+fi
+
 # clone cartographer plugin
 if [ ! -d cartographer3d-plugin/.git ]; then
     echo "I: cloning Jacob10383's cartographer plugin"
