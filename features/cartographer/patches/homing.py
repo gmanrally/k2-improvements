@@ -401,20 +401,44 @@ class PrinterHoming:
         toolhead = self.printer.lookup_object('toolhead')
         kin = toolhead.get_kinematics()
         gcode = self.printer.lookup_object('gcode')
+        # XY-HOMING-RETRY PATCH (2026-07-10): sensorless XY homing on the K2
+        # reports stalls via the RS485 motor-driver boards, and that report
+        # is intermittently lost (observed as key22 "No trigger on x/y" +
+        # buf_len=0x0 RS485 noise bursts during homing). The failure is
+        # transient — a retry succeeds essentially every time — so retry
+        # key21/key22 on X/Y up to 2 extra attempts before raising. Z is
+        # NEVER retried here: its no-trigger error must propagate untouched
+        # (see CARTO-SAFE PATCH below — a swallowed Z error rams the bed).
+        def _home_xy_with_retry(axis):
+            for attempt in range(3):
+                homing_state.set_axes([axis])
+                try:
+                    kin.home(homing_state)
+                    return
+                except self.printer.command_error as e:
+                    msg = str(e)
+                    transient = '"key22"' in msg or '"key21"' in msg
+                    if attempt >= 2 or not transient:
+                        raise
+                    gcode.respond_info(
+                        "XY-homing retry %d/2 on %s after transient stall-report loss"
+                        % (attempt + 1, "xy"[axis]))
+                    logging.info("XY-HOMING-RETRY: attempt %d on axis %s: %s"
+                                 % (attempt + 1, "xy"[axis], msg[:120]))
+                    toolhead.dwell(1.0)
+                    toolhead.wait_moves()
         try:
             if self.probe_type == "prtouch_v2":
                 for a in axes:
                     if a == 0 or a == 1:
-                        homing_state.set_axes([a])
-                        kin.home(homing_state)
+                        _home_xy_with_retry(a)
                     else:
                         self.printer.lookup_object('probe').mcu_probe.run_G28_Z()
             else:
                 homing_state.out_z_all = 0
                 for a in axes:
                     if a == 0 or a == 1:
-                        homing_state.set_axes([a])
-                        kin.home(homing_state)
+                        _home_xy_with_retry(a)
                     else:
                         if self.config.has_section("z_align"):
                             self.run_gcmd("BED_MESH_CLEAR", wait=True)
