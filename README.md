@@ -52,6 +52,37 @@ They both install the same set of features (those that I use).  The only differe
 
 You are still welcome to hand pick which features you want to install.
 
+
+## v1.4.0 — Hardened print-start flow (the cartographer standard)
+
+Validated in production on a 70°C-chamber PA6-CF job (2026-07-11). The start
+flow now guarantees every print begins from a verified-good state:
+
+**The flow (high-temp jobs, chamber ≥ 55°C, cartographer machines):**
+1. Slicer's auto-injected `M191` starts chamber heating and returns (no wait)
+2. `START_PRINT` heats the bed to the print's own bed temp and homes
+   (homing verified + auto-retried at both macro and Klipper level)
+3. Probe suite at print bed temperature, coil-gated below 78°C:
+   z-tilt → adaptive mesh → mesh sanity abort (>0.6mm spread = mechanical
+   fault, print refused) → nozzle clean → touch home
+4. Chamber soak (bed superheats to 120°C during the soak when the material
+   already runs a ≥115°C bed; exhaust fan targets soak+5°C as an
+   overshoot-only guard)
+5. Learned per-printer `soak_offset` applied (thermal growth during soak;
+   tune once via babystep), then print — nothing probes after the soak
+
+**Why:** measured cartographer thermal envelope (3 probes, 2 machines):
+V4 touch fails above ~85°C coil, scan above ~88°C, and the V4 6.0.0 MCU
+hot-touch failure is systemic (phantom triggers at any threshold). V3 scan
+can wedge the MCU entirely when hot. Probing before the soak sidesteps all
+of it at full accuracy.
+
+**Also in this release:** carto MCU temp guard raised 105→120°C (the 105
+guard hard-shutdown printers mid-hot-print via key92 ADC range), XY-homing
+transient auto-retry, entware PATH fixes for fresh installs, V3 schema-cap
+sed updated for the current plugin code shape, exhaust-fan overshoot-guard
+targeting, bed-120 soak superheat.
+
 # Latest Added Features:
 
 ## v1.3.0 — Cartographer reliability pack
