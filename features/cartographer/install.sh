@@ -43,9 +43,15 @@ echo "I: installing python dependencies"
 # ---------------------------------------------------------------------------
 CONFIG_FILE=~/cartographer3d-plugin/src/cartographer/interfaces/configuration.py
 if [ -f "$CONFIG_FILE" ]; then
+    # Old plugin code shape (pydantic Field):
     sed -i 's/sample_range: float = Field(default=0\.015, le=0\.015/sample_range: float = Field(default=0.015, le=0.5/' "$CONFIG_FILE"
-    if grep -q 'le=0.5' "$CONFIG_FILE"; then
+    # Current plugin code shape (option() helper, ~line 205 as of 2026-07):
+    sed -i '/sample_range: float = option/ s/max=0\.015/max=0.5/' "$CONFIG_FILE"
+    if grep -qE 'le=0\.5|max=0\.5' "$CONFIG_FILE"; then
         echo "I: V3-hardware schema cap applied (sample_range max raised 0.015 -> 0.5)"
+    else
+        echo "W: sample_range schema cap NOT applied - plugin code shape changed again."
+        echo "W: V4 hardware is unaffected; V3 touch calibration may fail at default tolerance."
     fi
 fi
 
