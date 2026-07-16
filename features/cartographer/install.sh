@@ -132,8 +132,11 @@ if ! zcat /proc/config.gz 2>/dev/null | grep -q "CONFIG_USB_ACM=y"; then
 # restart the cartographer service. Survives bridge crash + USB
 # disconnect/reconnect blips that stock cartographer_wrapper.sh doesn't
 # notice on its own.
+# 'restart' not 'start': after a probe re-enumeration the bridge process can
+# stay alive holding a stale device handle (observed 86D2 2026-07-16 -
+# /dev/cartographer gone, bridge "running", 'start' no-ops forever).
 if [ ! -e /dev/cartographer ] || ! pgrep -f '/mnt/UDISK/bin/usb_bridge' >/dev/null 2>&1; then
-    /etc/init.d/cartographer start >/dev/null 2>&1
+    /etc/init.d/cartographer restart >/dev/null 2>&1
 fi
 WATCHDOG
     chmod +x /mnt/UDISK/bin/carto-watchdog.sh
