@@ -11,3 +11,11 @@ The script supports cartographer v3 and v4.
 
 Otherwise, you can follow the official guide to flash the cartographer on another device:  
 https://docs.cartographer3d.com/cartographer-probe/firmware/updating-firmware
+## Variant note (2026-07-16, measured on 86D2)
+
+Despite the flash menu labelling Lite "Recommended for K2", **V4 6.2.0 Lite
+misbehaved on a K2 Plus**: constantly-lit probe LED, a spontaneous USB
+re-enumeration, and wedged touch triggering (key22 on every TOUCH_HOME while
+comms stayed healthy). **6.2.0 Full works correctly** on the same probe and
+host (calibrate verified 0.013mm across 10 samples, touch-home first try).
+The K2 host handled full-rate 6.0.0 for weeks - use Full.
