@@ -29,6 +29,15 @@ class PRTouchZ:
         self.mcu_probe = prtouch_v3_wrapper.PRTouchEndstopWrapper(config)
         self.multi_probe_pending = False
         self.speed = config.getfloat('speed', 5.0, above=0.)
+        # Consume the options the stock pairing's PrinterProbe would have
+        # read from this section (we don't instantiate one) - otherwise
+        # Klipper rejects them as unknown ("Option 'samples' is not valid",
+        # observed at first load test 2026-07-27).
+        self.z_offset = config.getfloat('z_offset', 0.)
+        config.getint('samples', 1, minval=1)
+        config.get('samples_result', 'average')
+        config.getfloat('samples_tolerance', 0.1, above=0.)
+        config.getint('samples_tolerance_retries', 0, minval=0)
         # Register as an independent pin chip (mirrors probe.py's pattern,
         # different chip name so the cartographer's 'probe' is untouched).
         self.printer.lookup_object('pins').register_chip('prtouch', self)
