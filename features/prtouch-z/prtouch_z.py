@@ -26,13 +26,13 @@ from . import prtouch_v3_wrapper
 class PRTouchZ:
     def __init__(self, config):
         self.printer = config.get_printer()
-        # The compiled wrapper's connect handler reaches into
-        # bed_mesh.bmc.probe_helper (stock layout). The carto-patched
-        # bed_mesh moved that helper onto BedMeshCalibrate.probe_mgr.
-        # Register our aliasing handler BEFORE creating the wrapper so it
-        # runs first (connect handlers fire in registration order).
-        self.printer.register_event_handler(
-            "klippy:connect", self._alias_probe_helper)
+        # The compiled wrapper reaches into bed_mesh.bmc.probe_helper (stock
+        # layout) from _build_config - which runs during MCU configuration,
+        # BEFORE any klippy:connect handler. The carto-patched bed_mesh keeps
+        # that helper on BedMeshCalibrate.probe_mgr instead. Alias it NOW, at
+        # config time, before the wrapper is created ([include bed_mesh.cfg]
+        # precedes [include prtouch_z.cfg], so bed_mesh already exists).
+        self._alias_probe_helper()
         self.mcu_probe = prtouch_v3_wrapper.PRTouchEndstopWrapper(config)
         self.multi_probe_pending = False
         self.speed = config.getfloat('speed', 5.0, above=0.)
