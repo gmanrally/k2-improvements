@@ -48,16 +48,11 @@ class PRTouchZ:
         # Register as an independent pin chip (mirrors probe.py's pattern,
         # different chip name so the cartographer's 'probe' is untouched).
         self.printer.lookup_object('pins').register_chip('prtouch', self)
-        self.printer.register_event_handler(
-            "homing:homing_move_begin", self._handle_homing_move_begin)
-        self.printer.register_event_handler(
-            "homing:homing_move_end", self._handle_homing_move_end)
-        self.printer.register_event_handler(
-            "homing:home_rails_begin", self._handle_home_rails_begin)
-        self.printer.register_event_handler(
-            "homing:home_rails_end", self._handle_home_rails_end)
-        self.printer.register_event_handler(
-            "gcode:command_error", self._handle_command_error)
+        # NOTE: no homing-event glue here - the compiled wrapper registers
+        # its own homing hooks internally (observed _handle_home_rails_begin
+        # in its traceback); duplicating probe_prepare/multi_probe from the
+        # shim double-runs Creality's step-swap ritual -> stepcompress crash
+        # (86D2 2026-07-27, tap test round 1).
         gcode = self.printer.lookup_object('gcode')
         gcode.register_command(
             'PRTOUCH_TAP', self.cmd_PRTOUCH_TAP,
@@ -129,11 +124,7 @@ class PRTouchZ:
         target = list(pos)
         target[2] = pos[2] - maxdist
         phoming = self.printer.lookup_object('homing')
-        self.multi_probe_begin()
-        try:
-            epos = phoming.probing_move(self.mcu_probe, target, speed)
-        finally:
-            self.multi_probe_end()
+        epos = phoming.probing_move(self.mcu_probe, target, speed)
         gcmd.respond_info("PRTOUCH_TAP triggered at Z=%.4f" % (epos[2],))
 
 
