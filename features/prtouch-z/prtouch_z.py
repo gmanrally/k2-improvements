@@ -26,6 +26,13 @@ from . import prtouch_v3_wrapper
 class PRTouchZ:
     def __init__(self, config):
         self.printer = config.get_printer()
+        # The compiled wrapper's connect handler reaches into
+        # bed_mesh.bmc.probe_helper (stock layout). The carto-patched
+        # bed_mesh moved that helper onto BedMeshCalibrate.probe_mgr.
+        # Register our aliasing handler BEFORE creating the wrapper so it
+        # runs first (connect handlers fire in registration order).
+        self.printer.register_event_handler(
+            "klippy:connect", self._alias_probe_helper)
         self.mcu_probe = prtouch_v3_wrapper.PRTouchEndstopWrapper(config)
         self.multi_probe_pending = False
         self.speed = config.getfloat('speed', 5.0, above=0.)
@@ -55,6 +62,19 @@ class PRTouchZ:
         gcode.register_command(
             'PRTOUCH_TAP', self.cmd_PRTOUCH_TAP,
             desc="Single guarded strain-gauge tap from the current position")
+
+    def _alias_probe_helper(self):
+        try:
+            bmc = self.printer.lookup_object('bed_mesh').bmc
+            if not hasattr(bmc, 'probe_helper'):
+                mgr = getattr(bmc, 'probe_mgr', None)
+                helper = getattr(mgr, 'probe_helper', None)
+                if helper is not None:
+                    bmc.probe_helper = helper
+                    logging.info("prtouch_z: aliased bed_mesh probe_helper "
+                                 "from probe_mgr for wrapper compatibility")
+        except Exception:
+            logging.exception("prtouch_z: probe_helper alias failed")
 
     # --- pin chip interface (mirrors probe.py) ---
     def setup_pin(self, pin_type, pin_params):
