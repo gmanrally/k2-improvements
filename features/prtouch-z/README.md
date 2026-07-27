@@ -24,3 +24,21 @@ touch through (e.g. 4mm garolite), while the carto keeps scan meshing.
 - 2026-07-27: shim written; NOT yet load-tested. Compiled wrapper may make
   assumptions the shim doesn't satisfy (unknown lookups at connect) - the
   load test exists to find out cheaply.
+
+## Post-mortem (2026-07-27): hybrid NOT viable
+
+The shim loads cleanly alongside the cartographer (probe-slot collision,
+option consumption, and the bed_mesh probe_helper relocation all solved -
+see git history). But the compiled wrapper's probing ritual **dispatches
+its own _HOME_Z / G28 gcode internally**: Creality prtouch assumes full
+ownership of Z homing. Under carto-owned Z (virtual endstop + patched
+homing.py) that ritual corrupts stepper state -> `Internal error in MCU
+'mcu' stepcompress` -> shutdown, reproducibly (2/2 tap attempts, with and
+without shim-side homing glue). No motion ever occurred; failures were
+pre-move.
+
+Conclusion: strain Z on a carto machine requires an EXCLUSIVE-mode swap
+(carto includes + patched extras out, stock prtouch stack in - note the
+carto install deletes stock bed_mesh.py*, so stock extras must be restored
+from the firmware image). Parked as a designed project; the shim is kept
+for its findings and the chip-registration pattern.
