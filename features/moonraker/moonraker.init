@@ -8,12 +8,28 @@ PROG=/mnt/UDISK/root/moonraker-env/bin/python
 CONF=/mnt/UDISK/printer_data/config/moonraker.conf
 LOG=/mnt/UDISK/printer_data/logs/moonraker.log
 
+# Stage uploads on the eMMC, not in RAM. Moonraker streams every upload into a
+# tempfile under $TMPDIR before moving it into place, and procd hands the
+# service no TMPDIR, so Python falls back to /tmp - which is tmpfs on a K2.
+# With 488MB of RAM that caps an upload at roughly 250MB, and a failed one
+# leaks its partial file into RAM until the next reboot: 86D2 2026-10-06 lost a
+# 325MB gcode to OSError 28 "No space left on device" with 19GB free on the
+# eMMC, then sat idle holding 240MB of orphaned tmpfs while two printers that
+# were actually printing held 186 and 238. Staging on /mnt/UDISK also makes the
+# final move a same-filesystem rename instead of a second full-size copy.
 start_service() {
 
 	[ "x$(get_sn_mac.sh pcba_test)" = "x1" ] && exit 0
 
+	# Nothing of ours is in flight at service start, so anything still in here
+	# is debris from an upload that died. Clear it instead of accumulating it.
+	# Paths are literal, not expanded from a variable: an unset var here would
+	# make this an rm -rf of something else entirely.
+	rm -rf /mnt/UDISK/tmp/moonraker
+	mkdir -p /mnt/UDISK/tmp/moonraker
+
 	procd_open_instance
-	procd_set_param env HOME=/mnt/UDISK PATH=/opt/bin:/opt/sbin:/mnt/UDISK/bin:/usr/sbin:/usr/bin:/sbin:/bin
+	procd_set_param env HOME=/mnt/UDISK TMPDIR=/mnt/UDISK/tmp/moonraker PATH=/opt/bin:/opt/sbin:/mnt/UDISK/bin:/usr/sbin:/usr/bin:/sbin:/bin
 	procd_set_param pidfile /var/run/moonraker.pid
 	procd_set_param command ${PROG} /mnt/UDISK/root/moonraker/moonraker/moonraker.py -c ${CONF} -l ${LOG}
 	procd_close_instance
